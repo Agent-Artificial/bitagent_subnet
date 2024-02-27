@@ -1,0 +1,68 @@
+version: '3'
+services:
+  bitagent-validator-testnet:
+    build:
+      context: .
+    container_name: bitagent
+    ports:
+      - ${dev_text_port}:9946
+    volumes:
+    - ./:/app/bitagent_subnet/
+    environment:
+      - NETUID=20
+      - CHAIN_ENDPOINT=ws://127.0.0.1:9946 # Default to test; override for mainnet
+      - WALLET_NAME=<COLDKEY>
+      - WALLET_HOTKEY=<HOTKEY>
+      - NETWORK=<LOCAL/FINNEY/TEST> # Default to a test network; override for mainnet
+      - AXON_PORT=<PORT> # Only needed for mainnet with a specific axon port
+      - RUN_MODE=test # Use 'test', 'mainnet', or 'mainnet-autoupdate' to control behavior
+    command: 
+      - sh
+      - -c
+      - |
+        if [ "$RUN_MODE" = 'test' ]; then
+          pm2 start neurons/validator.py --netuid $NETUID --subtensor.chain_endpoint $CHAIN_ENDPOINT --wallet.name $WALLET_NAME --wallet.hotkey $WALLET_HOTKEY;
+        elif [ "$RUN_MODE" = 'mainnet' ]; then
+          pm2 start neurons/validator.py --interpreter python3 -- --netuid $NETUID --subtensor.network $NETWORK --wallet.name $WALLET_NAME --wallet.hotkey $WALLET_HOTKEY --axon.port $AXON_PORT;
+        elif [ "$RUN_MODE" = 'mainnet-autoupdate' ]; then
+          pm2 start run.sh --name bitagent_validators_autoupdate -- --wallet.name $WALLET_NAME --wallet.hotkey $WALLET_HOTKEY --netuid $NETUID;
+        else
+          echo 'Invalid run mode'; exit 1;
+        fi
+
+  bitagent-miner:
+    build:
+      context: .
+    container_name: bitagent-miner
+    ports:
+      - ${dev_text_port}:9946
+    volumes:
+    - ./:/app/bitagent_subnet/
+    environment:
+      - NETUID=76
+      #- CHAIN_ENDPOINT=ws://127.0.0.1:9946 # Default to test; override for mainnet
+      - WALLET_NAME=<COLDKEY>
+      - WALLET_HOTKEY=<HOTKEY>
+      - NETWORK=<LOCAL/FINNEY/TEST> # Default to a test network; override for mainnet
+      - AXON_PORT=<PORT> # Only needed for mainnet with a specific axon port
+      - RUN_MODE=test # Use 'test', 'mainnet', or 'mainnet-autoupdate' to control behavior
+    command: 
+      - sh
+      - -c
+      - |
+        if [ "$RUN_MODE" = 'test' ]; then
+          pm2 start neurons/miner.py --netuid $NETUID --subtensor.network $NETWORK --wallet.name $WALLET_NAME --wallet.hotkey $WALLET_HOTKEY;
+        elif [ "$RUN_MODE" = 'mainnet' ]; then
+          pm2 start neurons/miner.py --interpreter python3 -- --netuid $NETUID --subtensor.network $NETWORK --wallet.name $WALLET_NAME --wallet.hotkey $WALLET_HOTKEY --axon.port $AXON_PORT;
+        else
+          echo 'Invalid run mode'; exit 1;
+        fi        
+    deploy:
+     resources:
+       reservations:
+         devices:
+           - driver: nvidia
+             count: all
+             capabilities: [gpu]
+
+
